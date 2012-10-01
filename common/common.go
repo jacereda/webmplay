@@ -12,11 +12,10 @@ import (
 
 var (
 	In = flag.String("i", "", "Input file")
-	nf = flag.Int("n", 0x7fffffff, "Number of frames")
 )
 
 func Main(vpresent func(ch <-chan *ffvp8.Frame),
-	apresent func(ch <-chan *ffvorbis.Samples)) {
+	apresent func(ch <-chan *ffvorbis.Samples, atrack *webm.Audio)) {
 
 	var err error
 	var wm webm.WebM
@@ -55,14 +54,13 @@ func Main(vpresent func(ch <-chan *ffvp8.Frame),
 	}
 
 	webm.Split(pchan, streams)
-
 	switch {
 	case astream != nil && vstream != nil:
-		go apresent(astream.Decode())
-		fallthrough
+		go apresent(astream.Decode(), &atrack.Audio)
+		vpresent(vstream.Decode())
 	case vstream != nil:
 		vpresent(vstream.Decode())
 	case astream != nil:
-		apresent(astream.Decode())
+		apresent(astream.Decode(), &atrack.Audio)
 	}
 }
