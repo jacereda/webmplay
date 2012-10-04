@@ -3,7 +3,6 @@ package common
 import (
 	"bufio"
 	"code.google.com/p/ebml-go/webm"
-	"code.google.com/p/ffvp8-go/ffvp8"
 	"flag"
 	"log"
 	"os"
@@ -13,9 +12,8 @@ var (
 	In = flag.String("i", "", "Input file")
 )
 
-func Main(vpresent func(ch <-chan *ffvp8.Frame),
+func Main(vpresent func(ch <-chan webm.Frame),
 	apresent func(ch <-chan webm.Samples, atrack *webm.Audio)) {
-
 	var err error
 	var wm webm.WebM
 	r, err := os.Open(*In)
