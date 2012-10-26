@@ -14,25 +14,27 @@ import (
 )
 
 var (
-	in         = flag.String("i", "", "Input file")
+	in         = flag.String("i", "", "Input file (required)")
 	unsync     = flag.Bool("u", false, "Unsynchronized display")
 	notc       = flag.Bool("t", false, "Ignore timecodes")
 	blend      = flag.Bool("b", false, "Blend between images")
 	fullscreen = flag.Bool("f", false, "Fullscreen mode")
 	justaudio  = flag.Bool("a", false, "Just audio")
 	justvideo  = flag.Bool("v", false, "Just video")
+
+	ntex      int
+	aflushing bool
 )
 
-var ntex int
-
-const vss = `
+const (
+	vss = `
 void main() {
   gl_TexCoord[0] = gl_MultiTexCoord0;
   gl_Position = ftransform();
 }
 `
 
-const ycbcr2rgb = `
+	ycbcr2rgb = `
 const mat3 ycbcr2rgb = mat3(
                           1.164, 0, 1.596,
                           1.164, -0.392, -0.813,
@@ -45,7 +47,7 @@ vec3 ycbcr2rgb(vec3 c) {
 }
 `
 
-const fss = ycbcr2rgb + `
+	fss = ycbcr2rgb + `
 uniform sampler2D yt1;
 uniform sampler2D cbt1;
 uniform sampler2D crt1;
@@ -57,7 +59,7 @@ void main() {
    gl_FragColor = vec4(ycbcr2rgb(c), 1.0);
 }
 `
-const bfss = ycbcr2rgb + `
+	bfss = ycbcr2rgb + `
 uniform sampler2D yt1;
 uniform sampler2D cbt1;
 uniform sampler2D crt1;
@@ -76,6 +78,7 @@ void main() {
    gl_FragColor = vec4(ycbcr2rgb(mix(c0, c1, factor)), 1);
 }
 `
+)
 
 func texinit(id int) {
 	gl.BindTexture(gl.TEXTURE_2D, gl.Uint(id))
@@ -261,9 +264,10 @@ func vpresent(wchan <-chan webm.Frame, reader *webm.Reader) {
 	flushing := false
 	for glfw.WindowParam(glfw.Opened) == 1 {
 		if seek != webm.BadTC {
+			flushing = true
+			aflushing = true
 			reader.Seek(seek)
 			seek = webm.BadTC
-			flushing = true
 		}
 
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
@@ -326,7 +330,14 @@ type AudioWriter struct {
 func (aw *AudioWriter) ProcessAudio(in, out []float32) {
 	for sent, lo := 0, len(out); sent < lo; {
 		if aw.sofar == len(aw.curr.Data) {
-			aw.curr, aw.active = <-aw.ch
+			var pkt webm.Samples
+			pkt, aw.active = <-aw.ch
+			if pkt.Rebase {
+				aflushing = false
+			} else if aflushing {
+				continue
+			}
+			aw.curr = pkt
 			aw.sofar = 0
 			//log.Println("timecode", aw.curr.Timecode)
 		}
@@ -357,7 +368,10 @@ func apresent(wchan <-chan webm.Samples, audio *webm.Audio) {
 
 func main() {
 	flag.Parse()
-
+	if *in == "" {
+		flag.Usage()
+		return
+	}
 	var err error
 	var wm webm.WebM
 	r, err := os.Open(*in)
