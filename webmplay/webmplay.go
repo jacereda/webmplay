@@ -377,11 +377,11 @@ func main() {
 	r, err := os.Open(*in)
 	defer r.Close()
 	if err != nil {
-		log.Panic("Unable to open file " + *in)
+		log.Fatalf("Unable to open file '%s'", *in)
 	}
 	reader, err := webm.Parse(r, &wm)
 	if err != nil {
-		log.Panic("Unable to parse file:", err)
+		log.Fatal("Unable to parse file: ", err)
 	}
 	duration = wm.GetDuration()
 
