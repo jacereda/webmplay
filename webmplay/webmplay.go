@@ -21,9 +21,9 @@ var (
 	fullscreen = flag.Bool("f", false, "Fullscreen mode")
 	justaudio  = flag.Bool("a", false, "Just audio")
 	justvideo  = flag.Bool("v", false, "Just video")
-
-	ntex      int
-	aflushing bool
+	loops      = flag.Int("l", 0, "Loops")
+	ntex       int
+	aflushing  bool
 )
 
 const (
@@ -274,12 +274,19 @@ func vpresent(wchan <-chan webm.Frame, reader *webm.Reader) {
 		t := time.Now()
 		if flushing || (steps > 0 && (*notc || t.After(tbase.Add(img.Timecode)))) {
 			pimg = img
-			var ok bool
-			var nimg webm.Frame
-			nimg, ok = <-wchan
+			nimg, ok := <-wchan
 			if !ok {
 				return
 			}
+			if nimg.EOS {
+				if *loops != 0 {
+					*loops--
+					reader.Seek(0)
+				} else {
+					reader.Shutdown()
+				}
+			}
+
 			if false && nimg.Timecode == pimg.Timecode {
 				log.Println("same timecode", img.Timecode)
 			}
@@ -287,7 +294,7 @@ func vpresent(wchan <-chan webm.Frame, reader *webm.Reader) {
 				tbase = time.Now().Add(-nimg.Timecode)
 				flushing = false
 			}
-			if !flushing {
+			if !flushing && !nimg.EOS {
 				if steps > 0 {
 					steps--
 				}
@@ -332,9 +339,12 @@ func (aw *AudioWriter) ProcessAudio(in, out []float32) {
 		if aw.sofar == len(aw.curr.Data) {
 			var pkt webm.Samples
 			pkt, aw.active = <-aw.ch
+			if !aw.active {
+				return
+			}
 			if pkt.Rebase {
 				aflushing = false
-			} else if aflushing {
+			} else if pkt.EOS || aflushing {
 				continue
 			}
 			aw.curr = pkt
@@ -347,7 +357,7 @@ func (aw *AudioWriter) ProcessAudio(in, out []float32) {
 	}
 }
 
-func apresent(wchan <-chan webm.Samples, audio *webm.Audio) {
+func apresent(wchan <-chan webm.Samples, audio *webm.Audio, done chan<- bool) {
 	chk := func(err error) {
 		if err != nil {
 			panic(err)
@@ -357,13 +367,14 @@ func apresent(wchan <-chan webm.Samples, audio *webm.Audio) {
 	aw := AudioWriter{ch: wchan, channels: channels, active: true}
 	stream, err := portaudio.OpenDefaultStream(0, channels,
 		audio.SamplingFrequency, 0, &aw)
-	defer stream.Close()
 	chk(err)
 	chk(stream.Start())
-	defer stream.Stop()
 	for aw.active {
 		time.Sleep(time.Second)
 	}
+	stream.Stop()
+	stream.Close()
+	done <- true
 }
 
 func main() {
@@ -405,13 +416,15 @@ func main() {
 		astream = webm.NewStream(atrack)
 	}
 	splitter.Split(astream, vstream)
+	adone := make(chan bool, 1)
 	switch {
 	case astream != nil && vstream != nil:
-		go apresent(astream.AudioChannel(), &atrack.Audio)
+		go apresent(astream.AudioChannel(), &atrack.Audio, adone)
 		fallthrough
 	case vstream != nil:
 		vpresent(vstream.VideoChannel(), reader)
 	case astream != nil:
-		apresent(astream.AudioChannel(), &atrack.Audio)
+		apresent(astream.AudioChannel(), &atrack.Audio, adone)
 	}
+	<-adone
 }
