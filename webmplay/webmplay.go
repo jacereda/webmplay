@@ -190,7 +190,7 @@ func mbhandler(button, state int) {
 }
 
 func khandler(key, state int) {
-	if state == glfw.KeyRelease {
+	if state == glfw.KeyPress {
 		switch key {
 		case 'P':
 			steps = 0
@@ -252,6 +252,7 @@ func vpresent(wchan <-chan webm.Frame, reader *webm.Reader) {
 		glfw.SetSwapInterval(1)
 	}
 	glfw.SetWindowTitle(*in)
+	glfw.Enable(glfw.KeyRepeat)
 	for i := 0; i < ntex; i++ {
 		texinit(i + 1)
 	}
@@ -262,7 +263,8 @@ func vpresent(wchan <-chan webm.Frame, reader *webm.Reader) {
 	pimg := img
 
 	flushing := false
-	for glfw.WindowParam(glfw.Opened) == 1 {
+	shutdown := false
+	for {
 		if seek != webm.BadTC {
 			flushing = true
 			aflushing = true
@@ -272,18 +274,20 @@ func vpresent(wchan <-chan webm.Frame, reader *webm.Reader) {
 
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 		t := time.Now()
-		if flushing || (steps > 0 && (*notc || t.After(tbase.Add(img.Timecode)))) {
+		if flushing || shutdown ||
+			(steps > 0 && (*notc || t.After(tbase.Add(img.Timecode)))) {
 			pimg = img
 			nimg, ok := <-wchan
 			if !ok {
-				return
+				break
 			}
 			if nimg.EOS {
 				if *loops != 0 {
 					*loops--
-					reader.Seek(0)
-				} else {
+					tseek(0) //reader.Seek(0)
+				} else if !shutdown {
 					reader.Shutdown()
+					shutdown = true
 				}
 			}
 
@@ -322,7 +326,14 @@ func vpresent(wchan <-chan webm.Frame, reader *webm.Reader) {
 		}
 		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 		runtime.GC()
-		glfw.SwapBuffers()
+		if glfw.WindowParam(glfw.Opened) == gl.FALSE {
+			if !shutdown {
+				reader.Shutdown()
+				shutdown = true
+			}
+		} else {
+			glfw.SwapBuffers()
+		}
 	}
 }
 
@@ -426,5 +437,7 @@ func main() {
 	case astream != nil:
 		apresent(astream.AudioChannel(), &atrack.Audio, adone)
 	}
-	<-adone
+	if astream != nil {
+		<-adone
+	}
 }
