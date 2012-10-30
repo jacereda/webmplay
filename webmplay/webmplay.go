@@ -203,6 +203,8 @@ func khandler(key, state int) {
 		case 'B':
 			steps = 1
 			tseek(lasttc - fduration)
+		case 'S':
+			steps = 1
 		}
 	}
 }
