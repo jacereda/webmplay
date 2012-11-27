@@ -166,6 +166,7 @@ type app struct {
 	tbase     time.Time
 	flushing  bool
 	shutdown  bool
+	fullscreen bool
 	seek      time.Duration
 	duration  time.Duration
 	fduration time.Duration
@@ -211,6 +212,16 @@ func (a *app) OnPress(k key.Id) {
 		a.tseek(a.img.Timecode - a.fduration)
 	case key.S:
 		a.steps = 1
+	case key.ESCAPE:
+		a.Quit()
+	case key.RETURN:
+		if a.fullscreen {
+			a.Windowed()
+			a.fullscreen = false
+		} else {
+			a.Fullscreen()
+			a.fullscreen = true
+		}
 	}
 }
 
