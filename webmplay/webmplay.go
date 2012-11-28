@@ -282,18 +282,22 @@ func (a *app) OnInit() {
 			panic(err)
 		}
 	}
-	channels := int(atrack.Audio.Channels)
-	a.aw = &AudioWriter{ch: astream.AudioChannel(), channels: channels, active: true}
-	a.pastream, err = portaudio.OpenDefaultStream(0, channels,
-		atrack.Audio.SamplingFrequency, 0, a.aw)
-	chk(err)
-	chk(a.pastream.Start())
-
+	if atrack != nil {
+		channels := int(atrack.Audio.Channels)
+		a.aw = &AudioWriter{ch: astream.AudioChannel(), 
+			channels: channels, active: true}
+		a.pastream, err = portaudio.OpenDefaultStream(0, channels,
+			atrack.Audio.SamplingFrequency, 0, a.aw)
+		chk(err)
+		chk(a.pastream.Start())
+	}
 }
 
 func (a *app) OnTerm() {
-	a.pastream.Stop()
-	a.pastream.Close()
+	if a.pastream != nil {
+		a.pastream.Stop()
+		a.pastream.Close()
+	}
 	a.r.Close()
 }
 
@@ -342,7 +346,9 @@ func (a *app) OnClose() {
 func (a *app) OnUpdate() {
 	if a.seek != webm.BadTC {
 		a.flushing = true
-		a.aw.flushing = true
+		if a.aw != nil {
+			a.aw.flushing = true
+		}
 		a.reader.Seek(a.seek)
 		a.seek = webm.BadTC
 	}
