@@ -166,7 +166,6 @@ type app struct {
 	tbase     time.Time
 	flushing  bool
 	shutdown  bool
-	fullscreen bool
 	seek      time.Duration
 	duration  time.Duration
 	fduration time.Duration
@@ -194,6 +193,27 @@ func (a *app) OnMotion(x, y int) {
 	}
 }
 
+func (a *app) enterFullscreen() {
+	a.Fullscreen()
+//	a.HideCursor()
+	*fullscreen = true
+}
+
+func (a *app) leaveFullscreen() {
+	a.Windowed()
+//	a.DefaultCursor()
+	*fullscreen = false
+}
+
+func (a *app) toggleFullscreen() {
+	if *fullscreen {
+		a.leaveFullscreen()
+	} else {
+		a.enterFullscreen()
+	}
+}
+
+
 func (a *app) OnPress(k key.Id) {
 	switch k {
 	case key.MOUSELEFT:
@@ -215,13 +235,7 @@ func (a *app) OnPress(k key.Id) {
 	case key.ESCAPE:
 		a.Quit()
 	case key.RETURN:
-		if a.fullscreen {
-			a.Windowed()
-			a.fullscreen = false
-		} else {
-			a.Fullscreen()
-			a.fullscreen = true
-		}
+		a.toggleFullscreen()
 	}
 }
 
@@ -230,14 +244,7 @@ func (a *app) Name() string {
 }
 
 func (a *app) Geometry() (x, y, w, h int) {
-	if *fullscreen {
-		return -1, -1, -1, -1
-	}
 	return 20, 20, a.img.Rect.Dx(), a.img.Rect.Dy()
-}
-
-func (a *app) Borders() bool {
-	return !*fullscreen
 }
 
 func (a *app) OnInit() {
@@ -317,6 +324,9 @@ func (a *app) OnGLInit() {
 	gl.Enable(gl.TEXTURE_2D)
 	gl.Disable(gl.DEPTH_TEST)
 	a.tbase = time.Now()
+	if *fullscreen {
+		a.enterFullscreen()
+	}
 }
 
 func (a *app) OnResize(w, h int) {
