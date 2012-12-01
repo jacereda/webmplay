@@ -170,6 +170,7 @@ type app struct {
 	duration  time.Duration
 	fduration time.Duration
 	steps     uint
+	quiet     uint
 	factorloc gl.Int
 	pastream  *portaudio.Stream
 	aw        *AudioWriter
@@ -191,17 +192,16 @@ func (a *app) OnMotion(x, y int) {
 	if a.Pressed(key.MOUSELEFT) {
 		a.xseek(x)
 	}
+	a.quiet = 0
 }
 
 func (a *app) enterFullscreen() {
 	a.Fullscreen()
-//	a.HideCursor()
 	*fullscreen = true
 }
 
 func (a *app) leaveFullscreen() {
 	a.Windowed()
-//	a.DefaultCursor()
 	*fullscreen = false
 }
 
@@ -212,7 +212,6 @@ func (a *app) toggleFullscreen() {
 		a.enterFullscreen()
 	}
 }
-
 
 func (a *app) OnPress(k key.Id) {
 	switch k {
@@ -291,7 +290,7 @@ func (a *app) OnInit() {
 	}
 	if atrack != nil {
 		channels := int(atrack.Audio.Channels)
-		a.aw = &AudioWriter{ch: astream.AudioChannel(), 
+		a.aw = &AudioWriter{ch: astream.AudioChannel(),
 			channels: channels, active: true}
 		a.pastream, err = portaudio.OpenDefaultStream(0, channels,
 			atrack.Audio.SamplingFrequency, 0, a.aw)
@@ -354,6 +353,13 @@ func (a *app) OnClose() {
 }
 
 func (a *app) OnUpdate() {
+	switch a.quiet {
+	case 0:
+		a.DefaultCursor()
+	case 60:
+		a.HideCursor()
+	}
+	a.quiet++
 	if a.seek != webm.BadTC {
 		a.flushing = true
 		if a.aw != nil {
