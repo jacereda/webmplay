@@ -1,10 +1,10 @@
 package main
 
 import (
-	"code.google.com/p/ebml-go/webm"
-	"code.google.com/p/glcv-go/canvas"
-	"code.google.com/p/glcv-go/key"
-	"code.google.com/p/portaudio-go/portaudio"
+	"github.com/jacereda/webm-go/webm"
+	"github.com/jacereda/glcv-go/canvas"
+	"github.com/jacereda/glcv-go/key"
+	"github.com/gordonklaus/portaudio"
 	"flag"
 	gl "github.com/chsc/gogl/gl21"
 	"log"
@@ -156,6 +156,14 @@ func factor(t time.Time, tc0 time.Time, tc1 time.Time) gl.Float {
 	return gl.Float(res)
 }
 
+func chk(err error) {
+	if err != nil {
+		log.Println(err)
+		panic(err)
+	}
+}
+
+
 type app struct {
 	canvas.Canvas
 	r         *os.File
@@ -280,20 +288,18 @@ func (a *app) OnInit() {
 	splitter.Split(astream, vstream)
 
 	a.steps = uint(0xffffffff)
-	a.img = <-a.vchan
-	a.pimg = a.img
-
-	chk := func(err error) {
-		if err != nil {
-			panic(err)
-		}
+	if a.vchan != nil {
+		a.img = <-a.vchan
+		a.pimg = a.img
 	}
+
 	if atrack != nil {
 		channels := int(atrack.Audio.Channels)
 		a.aw = &AudioWriter{ch: astream.AudioChannel(),
 			channels: channels, active: true}
+		chk(portaudio.Initialize())
 		a.pastream, err = portaudio.OpenDefaultStream(0, channels,
-			atrack.Audio.SamplingFrequency, 0, a.aw)
+			atrack.Audio.SamplingFrequency, 0, a.aw.processAudio)
 		chk(err)
 		chk(a.pastream.Start())
 	}
@@ -303,6 +309,7 @@ func (a *app) OnTerm() {
 	if a.pastream != nil {
 		a.pastream.Stop()
 		a.pastream.Close()
+		chk(portaudio.Terminate())
 	}
 	a.r.Close()
 }
@@ -440,7 +447,7 @@ type AudioWriter struct {
 	flushing bool
 }
 
-func (aw *AudioWriter) ProcessAudio(in, out []float32) {
+func (aw *AudioWriter) processAudio(out []float32) {
 	for sent, lo := 0, len(out); sent < lo; {
 		if aw.sofar == len(aw.curr.Data) {
 			var pkt webm.Samples
