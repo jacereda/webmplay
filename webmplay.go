@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/jacereda/webm-go/webm"
+	"github.com/jacereda/webm"
 	"github.com/jacereda/glcv-go/canvas"
 	"github.com/jacereda/glcv-go/key"
 	"github.com/gordonklaus/portaudio"
