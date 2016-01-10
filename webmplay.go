@@ -250,8 +250,22 @@ func (a *app) Name() string {
 	return *in
 }
 
+func (a *app) imgW() int {
+	if a.vchan == nil {
+		return 256
+	}
+	return a.img.Rect.Dx()
+}
+
+func (a *app) imgH() int {
+	if a.vchan == nil {
+		return 256;
+	}
+	return a.img.Rect.Dy()
+}
+
 func (a *app) Geometry() (x, y, w, h int) {
-	return 20, 20, a.img.Rect.Dx(), a.img.Rect.Dy()
+	return 20, 20, a.imgW(), a.imgH()
 }
 
 func (a *app) OnInit() {
@@ -336,7 +350,7 @@ func (a *app) OnGLInit() {
 }
 
 func (a *app) OnResize(w, h int) {
-	oaspect := float64(a.img.Rect.Dx()) / float64(a.img.Rect.Dy())
+	oaspect := float64(a.imgW()) / float64(a.imgH())
 	haspect := float64(w) / float64(h)
 	vaspect := float64(h) / float64(w)
 	var scx, scy float64
@@ -408,7 +422,10 @@ func (a *app) OnUpdate() {
 			a.img = nimg
 		}
 	}
-	a.draw(t)
+	if a.vchan != nil {
+		a.draw(t)
+	}
+	runtime.GC()
 }
 
 func (a *app) draw(t time.Time) {
@@ -435,7 +452,6 @@ func (a *app) draw(t time.Time) {
 		upload(6, pimg.Cr, pimg.CStride, w/2, h/2)
 	}
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
-	runtime.GC()
 }
 
 type AudioWriter struct {
